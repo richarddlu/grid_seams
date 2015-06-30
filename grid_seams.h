@@ -45,8 +45,8 @@ public:
 
 	Mat labelMap;
 
-	// M - number of vertical seams
-	// N - number of horizontal seams
+	// SX - number of pixels per virtical grid
+	// SY - number of pixels per horizontal grid
 	// w - weight
 	void process(const Mat& img, Mat& spMap, int SX, int SY, double w);
 
