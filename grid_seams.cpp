@@ -216,8 +216,8 @@ void GridSeams::display(const Mat& img) {
 			(*it1)[2] = 255;
 		}
 	}
-	imshow("s", seamMap);
-	imshow("seams", imgSeams);
+	imshow("seams", seamMap);
+	imshow("img seams", imgSeams);
 
 	RNG rng(123457);
 	vector<Vec3b> colors((M+1)*(N+1));
@@ -233,5 +233,5 @@ void GridSeams::display(const Mat& img) {
 			colorMap.at<Vec3b>(y,x) = colors[label];
 		}
 	}
-	imshow("colorMap", colorMap);
+	imshow("color map", colorMap);
 }
