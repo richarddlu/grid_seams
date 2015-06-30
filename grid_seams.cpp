@@ -145,7 +145,7 @@ void GridSeams::getLabelMap() {
 	}
 }
 
-void GridSeams::process(const Mat& img, Mat& spMap, int SX, int SY, double w) {
+void GridSeams::process(const Mat& img, int SX, int SY, double w) {
 	size = img.size();	// get image size
 
 	this->w = w;	// weight

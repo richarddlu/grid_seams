@@ -48,7 +48,7 @@ public:
 	// SX - number of pixels per virtical grid
 	// SY - number of pixels per horizontal grid
 	// w - weight
-	void process(const Mat& img, Mat& spMap, int SX, int SY, double w);
+	void process(const Mat& img, int SX, int SY, double w);
 
 	void display(const Mat& img);
 
