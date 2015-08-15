@@ -17,7 +17,15 @@ double GridSeams::g(int x, int S) {
 	return r;
 }
 
-void GridSeams::calculateEnergyMap(int S, int numSeams) {
+double GridSeams::l(int x, int y, int direction) {
+	if(direction == 0) {
+		return preSeamEnergyMapV.at<double>(y,x);
+	} else {
+		return preSeamEnergyMapH.at<double>(y,x);
+	}
+}
+
+void GridSeams::calculateEnergyMap(int S, int numSeams, int direction) {
 	energyMap = Mat::zeros(size, CV_64F);	// initializing energy map
 
 	/////////////////////////
@@ -29,7 +37,7 @@ void GridSeams::calculateEnergyMap(int S, int numSeams) {
 		if((x+1)%S == 0 && x+1 < S*numSeams) {	// on the border
 			energyMap.at<double>(0,x) = numeric_limits<double>::max();
 		} else {
-			energyMap.at<double>(0,x) = f(x,0) + w*g(x,S);
+			energyMap.at<double>(0,x) = f(x,0) + w*g(x,S) + u*l(x,0,direction);
 		}
 	}
 
@@ -39,7 +47,7 @@ void GridSeams::calculateEnergyMap(int S, int numSeams) {
 			if((x+1)%S == 0 && x+1 < S*numSeams) {	// on the border
 				energyMap.at<double>(y,x) = numeric_limits<double>::max();
 			} else {
-				double energy = f(x,y) + w*g(x,S);
+				double energy = f(x,y) + w*g(x,S) + u*l(x,y,direction);
 
 				// Get the path with smallest energy
 				double energyMin = numeric_limits<double>::max();
@@ -119,7 +127,7 @@ void GridSeams::getSeamMap(int S, int numSeams, int direction) {
 }
 
 void GridSeams::processOne(int S, int numSeams, int direction) {
-	calculateEnergyMap(S, numSeams);
+	calculateEnergyMap(S, numSeams, direction);
 	getSeamMap(S, numSeams, direction);
 }
 
@@ -145,10 +153,110 @@ void GridSeams::getLabelMap() {
 	}
 }
 
-void GridSeams::process(const Mat& img, int SX, int SY, double w) {
+void GridSeams::getPreSeamEnergyMap() {
+	preSeamEnergyMapV = Mat::zeros(size, CV_64F);
+	preSeamEnergyMapH = Mat::zeros(size, CV_64F);
+
+	if(seamMapVLast.empty())	// is seamMapVLast is empty, seamMapHLast must be empty
+		return;
+
+	// calculate vertical seam energy
+	for(int h = 0; h < size.height; h++) {	// forward process
+		int dist = 0;
+		bool seeSeam = false;
+		for(int w = 0; w < size.width; w++) {
+			if(seamMapVLast.at<uchar>(h,w) != 0) {
+				if(!seeSeam)
+					seeSeam = true;
+				dist = 0;
+			} else {
+				dist++;
+				if(!seeSeam)
+					preSeamEnergyMapV.at<double>(h,w) = -1;
+				else {
+					preSeamEnergyMapV.at<double>(h,w) = dist;
+				}
+			}
+		}
+	}
+	for(int h = 0; h < size.height; h++) {	// backward process
+		int dist = 0;
+		bool seeSeam = false;
+		for(int w = size.width-1; w >= 0; w--) {
+			if(seamMapVLast.at<uchar>(h,w) != 0) {
+				if(!seeSeam)
+					seeSeam = true;
+				dist = 0;
+			} else {
+				dist++;
+				double energy = preSeamEnergyMapV.at<double>(h,w);
+				if(!seeSeam) {
+					energy = energy / (energy+dist-1);
+				} else {
+					if(energy == -1) {
+						energy = ((double)dist) / (dist+w);
+					} else {
+						double minDist = (dist < energy)? dist : energy;
+						energy = minDist / (energy+dist);
+					}
+				}
+				preSeamEnergyMapV.at<double>(h,w) = energy;
+			}
+		}
+	}
+	
+	// calculate horizontal seam energy
+	for(int w = 0; w < size.width; w++) {	// forward process
+		int dist = 0;
+		bool seeSeam = false;
+		for(int h = 0; h < size.height; h++) {
+			if(seamMapHLast.at<uchar>(h,w) != 0) {
+				if(!seeSeam)
+					seeSeam = true;
+				dist = 0;
+			} else {
+				dist++;
+				if(!seeSeam)
+					preSeamEnergyMapH.at<double>(h,w) = -1;
+				else {
+					preSeamEnergyMapH.at<double>(h,w) = dist;
+				}
+			}
+		}
+	}
+	for(int w = 0; w < size.width; w++) {	// backward process
+		int dist = 0;
+		bool seeSeam = false;
+		for(int h = size.height-1; h >= 0; h--) {
+			if(seamMapHLast.at<uchar>(h,w) != 0) {
+				if(!seeSeam)
+					seeSeam = true;
+				dist = 0;
+			} else {
+				dist++;
+				double energy = preSeamEnergyMapH.at<double>(h,w);
+				if(!seeSeam) {
+					energy = energy / (energy+dist-1);
+				} else {
+					if(energy == -1) {
+						energy = ((double)dist) / (dist+h);
+					} else {
+						double minDist = (dist < energy)? dist : energy;
+						energy = minDist / (energy+dist);
+					}
+				}
+				preSeamEnergyMapH.at<double>(h,w) = energy;
+			}
+		}
+	}
+}
+
+void GridSeams::process(const Mat& img, int SX, int SY, double w, double u) {
 	size = img.size();	// get image size
 
-	this->w = w;	// weight
+	// weights
+	this->w = w;
+	this->u = u;
 
 	// grid size
 	// the last grid might be big
@@ -178,6 +286,9 @@ void GridSeams::process(const Mat& img, int SX, int SY, double w) {
 	normalize(gradientMap, gradientMap, 0, 1, NORM_MINMAX, CV_64F);
 	gradientMap = Mat::ones(size, CV_64F) - gradientMap;
 
+	// video coherence
+	getPreSeamEnergyMap();
+
 	// Generate vertical seams
 	processOne(this->SX, M, 0);
 
@@ -185,9 +296,11 @@ void GridSeams::process(const Mat& img, int SX, int SY, double w) {
 	transpose(gradientMap, gradientMap);
 	transpose(energyMap, energyMap);
 	transpose(seamMapH, seamMapH);
+	transpose(preSeamEnergyMapH, preSeamEnergyMapH);
 	size = Size(size.height, size.width);
 	processOne(this->SY, N, 1);
 	transpose(seamMapH, seamMapH);
+	transpose(preSeamEnergyMapH, preSeamEnergyMapH);
 	// transpose(energyMap, energyMap);	// efficiency consideration
 	// transpose(seamMapH, seamMapH);	// efficiency consideration
 	size = Size(size.height, size.width);
@@ -203,6 +316,10 @@ void GridSeams::process(const Mat& img, int SX, int SY, double w) {
 	// labeling
 	labelMap = Mat::zeros(size, CV_32S);
 	getLabelMap();
+
+	// video coherence
+	seamMapVLast = seamMapV.clone();
+	seamMapHLast = seamMapH.clone();
 }
 
 void GridSeams::display(const Mat& img) {
