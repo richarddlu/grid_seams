@@ -1,5 +1,5 @@
 # grid_seams
-Implementation of Grid Seams Algorithm
+Temporal coherence enhanced implementation of Grid Seams Algorithm. It takes the seams of previous frames into consideration, and makes the seams in current frame closer to them.
 See how to use it in demo.cpp
 
 ## Reference
